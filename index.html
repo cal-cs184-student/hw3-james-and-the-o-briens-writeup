@@ -23,6 +23,10 @@
 			body {
 				font-family: 'Inter', sans-serif;
 			}
+
+			h1, h2, h3, h4, h5, h6, th, b, strong {
+				font-weight: 400;
+			}
 		</style>
 	</head>
 	<body>
@@ -41,66 +45,556 @@
 		</figure>
 
 		<!--
-		We've already added one heading per part, to make your write-up as navigable when grading. Please fit your write-up within these sections!
+		I've already added one heading per part, to make your write-up as navigable when grading. Please fit your write-up within these sections!
 		-->
 
 		<h2>Overview</h2>
-		Give a high-level overview of what you implemented in this homework. Think about what you've built as a whole. Share your thoughts on what interesting things you've learned from completing the homework.
+		<p>In this homework, I built up a path tracer piece by piece: first camera rays and intersections, then a BVH to make those intersections fast, then direct and indirect lighting, and finally adaptive sampling. The most satisfying part was seeing how each feature changed the renders. A normal-shaded Cornell box is useful for debugging, but once indirect light and enough samples are in place, it starts to look like an actual scene instead of a collection of triangles.</p>
 
 		<h2>Part 1: Ray Generation and Scene Intersection</h2>
-		Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.
 
-		<p>Here is an example 2x2 gridlike structure using an HTML table. Each <b>tr</b> is a row and each <b>td</b> is a column in that row. You might find this useful for framing and showing your result images in an organized fashion.</p>
+		<h3>Ray generation and primitive intersection</h3>
+
+		<p>For each pixel, I cast several slightly different rays, average their colors, and save the result. The small random offsets keep the image from looking blocky. Rays start at the camera, pass through the image plane, and only consider objects inside the clipping range.</p>
+
+		<p>I test each ray against spheres and triangles and keep the closest hit. Spheres use a standard ray&ndash;sphere test, while triangles use the M&ouml;ller&ndash;Trumbore method. I also blend triangle normals so curved models look smooth instead of faceted.</p>
+
+		<h3>Normal shading results</h3>
+
+		<p>For normal shading, I turn the surface direction into a color. The floor is green, surfaces facing the camera lean blue or lavender, and rays that miss everything are black.</p>
+
+		<p>All of the images below were rendered with my Part 1 code (normal shading) at 480x360 with the default 1 sample per pixel, and saved with the <code>-f</code> flag rather than taken as screenshots. For example: <code>./pathtracer -t 8 -r 480 360 -f CBspheres_lambertian.png ../dae/sky/CBspheres_lambertian.dae</code>.</p>
 		<div style="display: flex; flex-direction: column; align-items: center;">
 			<table style="width: 100%; text-align: center; border-collapse: collapse;">
 			  <tr>
 				<td style="text-align: center;">
-				  <img src="assets/cornell.png" width="400px"/>
-				  <figcaption>Caption goes here.</figcaption>
+				  <img src="assets/part1/CBempty.png" width="400px"/>
+				  <figcaption>CBempty.dae (12 primitives)</figcaption>
 				</td>
 				<td style="text-align: center;">
-				  <img src="assets/cornell.png" width="400px"/>
-				  <figcaption>Caption goes here.</figcaption>
+				  <img src="assets/part1/CBspheres_lambertian.png" width="400px"/>
+				  <figcaption>CBspheres_lambertian.dae (14 primitives)</figcaption>
 				</td>
 			  </tr>
 			  <tr>
 				<td style="text-align: center;">
-				  <img src="assets/cornell.png" width="400px"/>
-				  <figcaption>Caption goes here.</figcaption>
+				  <img src="assets/part1/CBgems.png" width="400px"/>
+				  <figcaption>CBgems.dae (252 primitives)</figcaption>
 				</td>
 				<td style="text-align: center;">
-				  <img src="assets/cornell.png" width="400px"/>
-				  <figcaption>Caption goes here.</figcaption>
+				  <img src="assets/part1/banana.png" width="400px"/>
+				  <figcaption>banana.dae (2,458 primitives)</figcaption>
+				</td>
+			  </tr>
+			  <tr>
+				<td style="text-align: center;">
+				  <img src="assets/part1/CBcoil.png" width="400px"/>
+				  <figcaption>CBcoil.dae (7,884 primitives)</figcaption>
+				</td>
+				<td></td>
+			  </tr>
+			</table>
+		</div>
+
+		<p>Flat Cornell-box walls each have one color, while spheres and smooth meshes fade between colors. The low-polygon gems still show their faceted shape.</p>
+		
+		<h2>Part 2: Bounding Volume Hierarchy</h2>
+
+		<h3>BVH construction and splitting heuristic</h3>
+
+		<p>I use a BVH, which is a tree of boxes around groups of objects. If a ray misses a box, it can skip everything inside it. I split objects by the spread of their centers and use a middle split as a fallback when needed.</p>
+
+		<p>When tracing a ray, I only visit boxes it touches. At the end, I test the small group of objects in a leaf and keep the nearest hit. This produces the same image while making large scenes much faster.</p>
+
+		<h3>Large scenes with normal shading</h3>
+
+		<p>These scenes were rendered with normal shading and the BVH at 480x360, with the default 1 sample per pixel and 8 threads, and saved with the <code>-f</code> flag. The captions list the triangle count along with the BVH build time and render time.</p>
+		<div style="display: flex; flex-direction: column; align-items: center;">
+			<table style="width: 100%; text-align: center; border-collapse: collapse;">
+			  <tr>
+				<td style="text-align: center;">
+				  <img src="assets/part2/maxplanck.png" width="400px"/>
+				  <figcaption>maxplanck.dae (50,801 triangles; build 0.0086 s, render 0.0156 s)</figcaption>
+				</td>
+				<td style="text-align: center;">
+				  <img src="assets/part2/peter.png" width="400px"/>
+				  <figcaption>peter.dae (40,018 triangles; build 0.0053 s, render 0.0138 s)</figcaption>
+				</td>
+			  </tr>
+			  <tr>
+				<td style="text-align: center;">
+				  <img src="assets/part2/beast.png" width="400px"/>
+				  <figcaption>beast.dae (64,618 triangles; build 0.0104 s, render 0.0125 s)</figcaption>
+				</td>
+				<td style="text-align: center;">
+				  <img src="assets/part2/dragon.png" width="400px"/>
+				  <figcaption>dragon.dae (105,120 triangles; build 0.0234 s, render 0.0145 s)</figcaption>
+				</td>
+			  </tr>
+			  <tr>
+				<td style="text-align: center;">
+				  <img src="assets/part2/CBlucy.png" width="400px"/>
+				  <figcaption>CBlucy.dae (133,796 triangles; build 0.0236 s, render 0.0088 s)</figcaption>
+				</td>
+				<td style="text-align: center;">
+				  <img src="assets/part2/wall-e.png" width="400px"/>
+				  <figcaption>wall-e.dae (240,326 triangles; build 0.0467 s, render 0.0187 s)</figcaption>
 				</td>
 			  </tr>
 			</table>
 		</div>
-		
-		<h2>Part 2: Bounding Volume Hierarchy</h2>
-		Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.
+
+		<p>With the BVH, all of these scenes render in roughly a hundredth of a second. Without it, every ray has to check every primitive. Maxplanck already takes 79 seconds single-threaded without acceleration, so larger scenes like CBlucy and wall-e quickly become impractical.</p>
+
+		<h3>Rendering times with and without the BVH</h3>
+
+		<p>All timings were measured on the same machine at 480x360 with 1 sample per pixel and normal shading. "No BVH" is my Part-1-only build, where the whole scene is a single leaf, so every ray is tested against every primitive. "BVH" is my Part 2 build. I timed each scene with 8 threads (<code>-t 8</code>), and I also re-ran every scene single-threaded (<code>-t 1</code>) because the renderer's ray and intersection-test counters aren't thread-safe and undercount with 8 threads. The single-threaded runs give exact counts: every run traced exactly 172,800 (480x360) rays. The tests-per-ray columns below come from those single-threaded runs.</p>
+		<div style="display: flex; flex-direction: column; align-items: center;">
+			<table style="width: 100%; text-align: center; border-collapse: collapse;" border="1" cellpadding="4">
+			  <tr>
+				<th>Scene</th>
+				<th>Triangles</th>
+				<th>No BVH (8 threads)</th>
+				<th>BVH (8 threads)</th>
+				<th>Speedup (8 threads)</th>
+				<th>No BVH (1 thread)</th>
+				<th>BVH (1 thread)</th>
+				<th>Speedup (1 thread)</th>
+				<th>Avg tests/ray, no BVH</th>
+				<th>Avg tests/ray, BVH</th>
+			  </tr>
+			  <tr>
+				<td>teapot.dae</td><td>2,464</td><td>0.5075 s</td><td>0.0198 s</td><td>~26x</td><td>2.6108 s</td><td>0.0329 s</td><td>~79x</td><td>2,464</td><td>6.81</td>
+			  </tr>
+			  <tr>
+				<td>cow.dae</td><td>5,856</td><td>1.3533 s</td><td>0.0141 s</td><td>~96x</td><td>6.8043 s</td><td>0.0401 s</td><td>~170x</td><td>5,856</td><td>6.99</td>
+			  </tr>
+			  <tr>
+				<td>beetle.dae</td><td>7,558</td><td>1.7196 s</td><td>0.0121 s</td><td>~142x</td><td>8.5517 s</td><td>0.0321 s</td><td>~266x</td><td>7,558</td><td>4.90</td>
+			  </tr>
+			  <tr>
+				<td>CBbunny.dae</td><td>28,588</td><td>10.4753 s</td><td>0.0082 s</td><td>~1,277x</td><td>54.7272 s</td><td>0.0211 s</td><td>~2,594x</td><td>28,588</td><td>2.51</td>
+			  </tr>
+			  <tr>
+				<td>maxplanck.dae</td><td>50,801</td><td>14.8069 s</td><td>0.0154 s</td><td>~962x</td><td>79.2236 s</td><td>0.0600 s</td><td>~1,320x</td><td>50,801</td><td>8.23</td>
+			  </tr>
+			</table>
+		</div>
+
+		<p>The timing table makes the value of the BVH pretty obvious. Without it, tests per ray exactly match the triangle count, so the work grows linearly with scene size. With it, I only need about 2.5&ndash;8.2 primitive tests per ray and render times stay around 0.01&ndash;0.06 seconds even for the larger scenes. The speedup grows from roughly 26x on the teapot to over 1,000x on CBbunny and maxplanck. CBbunny actually has the fewest tests per ray, probably because most camera rays hit the large Cornell-box walls and never need to enter the bunny's part of the tree. BVH construction is tiny compared with what it saves; the exact millisecond timings vary a little run to run, but the overall difference is not subtle.</p>
 
 		<h2>Part 3: Direct Illumination</h2>
-		Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.
+
+		<h3>My two direct lighting implementations</h3>
+
+		<p>For direct lighting, I calculate how much light reaches a surface and how the material reflects it. I implemented two methods: sampling random directions around the surface, and sampling directions that point toward the lights. In both methods, a shadow ray checks whether something blocks the light.</p>
+
+		<p>Light sampling is more efficient because it aims samples where light is likely to be. Random hemisphere sampling spends many samples on dark directions, especially when the light is small.</p>
+
+		<h3>Uniform hemisphere sampling vs. light sampling: renders</h3>
+
+		<p>I rendered these at 480x360 (480x480 for the dragon) with 64 pixel samples, 32 light samples, and 8 threads. Since these came from my final renderer rather than the Part 3 checkpoint, I also used:</p>
+		<ul>
+			<li><code>-m 1</code>, which makes the renderer return exactly zero-bounce plus one-bounce (direct) lighting. That is the Part 3 result, with no indirect bounces.</li>
+			<li><code>-a 64 0.05</code>, which turns off Part 5's adaptive sampling here: with at most 64 samples, the convergence check never runs, so every pixel gets the full sample count.</li>
+		</ul>
+		<p>The spec uses <code>-m 6</code> in Part 3 only because indirect lighting did not exist yet at that point.</p>
+		<div style="display: flex; flex-direction: column; align-items: center;">
+			<table style="width: 100%; text-align: center; border-collapse: collapse;">
+			  <tr>
+				<th>Uniform Hemisphere Sampling</th>
+				<th>Light Sampling</th>
+			  </tr>
+			  <tr>
+				<td style="text-align: center;">
+				  <img src="assets/part3/CBbunny_hemisphere.png" width="400px"/>
+				  <figcaption>CBbunny.dae, hemisphere (26.75 s)</figcaption>
+				</td>
+				<td style="text-align: center;">
+				  <img src="assets/part3/CBbunny_light.png" width="400px"/>
+				  <figcaption>CBbunny.dae, light sampling (13.46 s)</figcaption>
+				</td>
+			  </tr>
+			  <tr>
+				<td style="text-align: center;">
+				  <img src="assets/part3/CBspheres_hemisphere.png" width="400px"/>
+				  <figcaption>CBspheres_lambertian.dae, hemisphere (15.91 s)</figcaption>
+				</td>
+				<td style="text-align: center;">
+				  <img src="assets/part3/CBspheres_light.png" width="400px"/>
+				  <figcaption>CBspheres_lambertian.dae, light sampling (16.69 s)</figcaption>
+				</td>
+			  </tr>
+			  <tr>
+				<td style="text-align: center;">
+				  <img src="assets/part3/dragon_hemisphere.png" width="400px"/>
+				  <figcaption>dragon.dae, hemisphere (45.89 s)</figcaption>
+				</td>
+				<td style="text-align: center;">
+				  <img src="assets/part3/dragon_light.png" width="400px"/>
+				  <figcaption>dragon.dae, light sampling (14.85 s)</figcaption>
+				</td>
+			  </tr>
+			</table>
+		</div>
+
+		<p>Light sampling is noticeably cleaner in the bunny and sphere scenes, and it also works for the dragon's directional and ambient lights. Hemisphere sampling misses those lights entirely.</p>
+
+		<h3>Soft shadow noise vs. number of light rays</h3>
+
+		<p>Here I focus on CBbunny.dae, which has one area light, rendered with light sampling at 480x360 with 1 sample per pixel and 1, 4, 16, and 64 light rays (<code>-s 1 -l {1, 4, 16, 64} -m 1</code>).</p>
+		<div style="display: flex; flex-direction: column; align-items: center;">
+			<table style="width: 100%; text-align: center; border-collapse: collapse;">
+			  <tr>
+				<td style="text-align: center;">
+				  <img src="assets/part3/CBbunny_l1.png" width="400px"/>
+				  <figcaption>1 light ray (0.0187 s)</figcaption>
+				</td>
+				<td style="text-align: center;">
+				  <img src="assets/part3/CBbunny_l4.png" width="400px"/>
+				  <figcaption>4 light rays (0.0486 s)</figcaption>
+				</td>
+			  </tr>
+			  <tr>
+				<td style="text-align: center;">
+				  <img src="assets/part3/CBbunny_l16.png" width="400px"/>
+				  <figcaption>16 light rays (0.1330 s)</figcaption>
+				</td>
+				<td style="text-align: center;">
+				  <img src="assets/part3/CBbunny_l64.png" width="400px"/>
+				  <figcaption>64 light rays (0.5408 s)</figcaption>
+				</td>
+			  </tr>
+			</table>
+		</div>
+
+		<p>With more light rays, the bunny's soft shadow becomes smoother and the speckling drops sharply.</p>
+		<p>In a soft shadow, each pixel estimates how much of the light it can see. More light samples make that estimate smoother, but take longer to render.</p>
+
+		<h3>Comparing uniform hemisphere sampling and light sampling</h3>
+
+		<p>To compare the two methods at an equal, low budget, I also rendered CBbunny with 1 sample per pixel and 16 light samples (<code>-s 1 -l 16 -m 1</code>) using each method:</p>
+		<div style="display: flex; flex-direction: column; align-items: center;">
+			<table style="width: 100%; text-align: center; border-collapse: collapse;">
+			  <tr>
+				<td style="text-align: center;">
+				  <img src="assets/part3/CBbunny_hemisphere_s1_l16.png" width="400px"/>
+				  <figcaption>Uniform hemisphere, -s 1 -l 16 (0.2305 s)</figcaption>
+				</td>
+				<td style="text-align: center;">
+				  <img src="assets/part3/CBbunny_light_s1_l16.png" width="400px"/>
+				  <figcaption>Light sampling, -s 1 -l 16 (0.1345 s)</figcaption>
+				</td>
+			  </tr>
+			</table>
+		</div>
+
+		<p>At the same sample budget, light sampling is much less noisy. The hemisphere render in the 1 spp &times; 16 comparison is mostly dark with a few bright dots, while the light-sampled version is already close to clean. Both estimators are unbiased; the difference is variance. A random hemisphere direction rarely lands on the small area light, so most samples contribute nothing. Light sampling aims every sample toward a light, so it only gets zeroed out when the light is blocked or behind the surface. It also handles delta lights, which explains the black dragon in the hemisphere render. In my tests it was faster for the bunny and dragon and about even for the spheres. The ceiling glow around the light in the hemisphere images is from the area light's directionality, not noise.</p>
 
 		<h2>Part 4: Global Illumination</h2>
-		Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.
+
+		<h3>My indirect lighting implementation</h3>
+
+		<p>Global illumination lets light bounce between surfaces instead of stopping after the first hit. I sample a new direction from each diffuse surface, trace another ray, and add that bounced light to the pixel. This creates soft shadows, indirect light, and color bleeding.</p>
+
+		<p>I limit the number of bounces with <code>-m</code>. Russian roulette randomly ends some long paths while keeping the final image correct on average, which makes deeper renders much faster.</p>
+
+		<h3>Global illumination renders</h3>
+
+		<p>Render settings for every image in Part 4: 480x360 (the dragon is 480x480), 8 threads, saved with <code>-f</code>. Every image uses 4 light rays (<code>-l 4</code>) and 1024 samples per pixel unless the caption says otherwise. I passed <code>-a 1024 0.05</code> only to keep Part 5's adaptive sampling from stopping pixels early: with at most 1024 samples, its convergence check never runs, so every pixel gets the full sample count.</p>
+
+		<p>These three scenes were rendered with full global illumination (direct and indirect) at <code>-m 5</code>.</p>
+		<div style="display: flex; flex-direction: column; align-items: center;">
+			<table style="width: 100%; text-align: center; border-collapse: collapse;">
+			  <tr>
+				<td style="text-align: center;">
+				  <img src="assets/part4/bunny_o1_m5.png" width="260px"/>
+				  <figcaption>CBbunny.dae (133.88 s)</figcaption>
+				</td>
+				<td style="text-align: center;">
+				  <img src="assets/part4/spheres_s1024.png" width="260px"/>
+				  <figcaption>CBspheres_lambertian.dae (118.54 s)</figcaption>
+				</td>
+				<td style="text-align: center;">
+				  <img src="assets/part4/dragon_gi.png" width="260px"/>
+				  <figcaption>dragon.dae, 480x480 (76.18 s)</figcaption>
+				</td>
+			  </tr>
+			</table>
+		</div>
+
+		<p>Compared with the direct-only renders, the ceiling and upper corners are no longer black and the shadows are much softer. The other clear change is color bleeding: nearby surfaces pick up red from the red wall and blue from the blue wall.</p>
+
+		<h3>Only direct vs. only indirect illumination</h3>
+
+		<p>For this comparison I used CBbunny.dae at 1024 samples per pixel and 4 light rays. The direct-only image uses <code>-m 1</code>, which gives zero-bounce plus one-bounce lighting. For the indirect-only image, I followed the spec and temporarily edited the code in a separate build:</p>
+		<ul>
+			<li>In <code>at_least_one_bounce_radiance</code>, I skip the <code>one_bounce_radiance</code> term at the <i>first</i> hit (<code>r.depth == max_ray_depth</code>) but keep it at every later hit along the path.</li>
+			<li>In <code>est_radiance_global_illumination</code>, I drop the zero-bounce term.</li>
+		</ul>
+		<p>That way the image (rendered with <code>-m 5</code>) only contains light that bounced at least twice, i.e. bounces 2 through 5. My submitted code is unchanged.</p>
+		<div style="display: flex; flex-direction: column; align-items: center;">
+			<table style="width: 100%; text-align: center; border-collapse: collapse;">
+			  <tr>
+				<td style="text-align: center;">
+				  <img src="assets/part4/bunny_direct_only.png" width="400px"/>
+				  <figcaption>Only direct illumination (-m 1, 43.07 s)</figcaption>
+				</td>
+				<td style="text-align: center;">
+				  <img src="assets/part4/bunny_indirect_only.png" width="400px"/>
+				  <figcaption>Only indirect illumination (-m 5, special build, 94.61 s)</figcaption>
+				</td>
+			  </tr>
+			</table>
+		</div>
+
+		<p>Direct light gives the scene its bright surfaces and sharper shadows. Indirect light fills in the ceiling and shadows, softens the image, and creates the red and blue color bleeding.</p>
+
+		<h3>Rendering only the m-th bounce of light</h3>
+
+		<p>These are CBbunny.dae renders with <code>isAccumBounces</code> set to false (<code>-o 0</code>), so each image shows only the light from the m-th bounce, for <code>max_ray_depth</code> 0 through 5.</p>
+		<div style="display: flex; flex-direction: column; align-items: center;">
+			<table style="width: 100%; text-align: center; border-collapse: collapse;">
+			  <tr>
+				<td style="text-align: center;">
+				  <img src="assets/part4/bunny_o0_m0.png" width="260px"/>
+				  <figcaption>max_ray_depth = 0 (bounce 0 only)</figcaption>
+				</td>
+				<td style="text-align: center;">
+				  <img src="assets/part4/bunny_o0_m1.png" width="260px"/>
+				  <figcaption>max_ray_depth = 1 (bounce 1 only)</figcaption>
+				</td>
+				<td style="text-align: center;">
+				  <img src="assets/part4/bunny_o0_m2.png" width="260px"/>
+				  <figcaption>max_ray_depth = 2 (bounce 2 only)</figcaption>
+				</td>
+			  </tr>
+			  <tr>
+				<td style="text-align: center;">
+				  <img src="assets/part4/bunny_o0_m3.png" width="260px"/>
+				  <figcaption>max_ray_depth = 3 (bounce 3 only)</figcaption>
+				</td>
+				<td style="text-align: center;">
+				  <img src="assets/part4/bunny_o0_m4.png" width="260px"/>
+				  <figcaption>max_ray_depth = 4 (bounce 4 only)</figcaption>
+				</td>
+				<td style="text-align: center;">
+				  <img src="assets/part4/bunny_o0_m5.png" width="260px"/>
+				  <figcaption>max_ray_depth = 5 (bounce 5 only)</figcaption>
+				</td>
+			  </tr>
+			</table>
+		</div>
+
+		<p>The first bounce gives direct lighting. Later bounces are dimmer, but they light the ceiling, soften shadows, and add color bleeding. This is the extra realism a simple direct-light renderer misses.</p>
+		<p>Compared with rasterization: a typical rasterizer computes only direct lighting from the light sources (like m = 1), so the ceiling would be black, the shadows would be pitch black, and there would be no color bleeding. The 2nd and 3rd bounces supply exactly that missing light: they light up the ceiling, fill the shadows with soft light, and carry the wall colors onto nearby surfaces. That indirect light is a big part of why the path-traced image looks physically real.</p>
+
+		<h3>Accumulated vs. unaccumulated bounces</h3>
+
+		<p>Here I compare the unaccumulated renders from above (only bounce m) with accumulated renders (<code>isAccumBounces</code> on, so bounces 0 through m) for CBbunny.dae with <code>max_ray_depth</code> 0 through 5.</p>
+		<div style="display: flex; flex-direction: column; align-items: center;">
+			<table style="width: 100%; text-align: center; border-collapse: collapse;">
+			  <tr>
+				<th>Unaccumulated (bounce m only)</th>
+				<th>Accumulated (bounces 0 through m)</th>
+			  </tr>
+			  <tr>
+				<td style="text-align: center;">
+				  <img src="assets/part4/bunny_o0_m0.png" width="400px"/>
+				  <figcaption>max_ray_depth = 0 (9.74 s)</figcaption>
+				</td>
+				<td style="text-align: center;">
+				  <img src="assets/part4/bunny_o1_m0.png" width="400px"/>
+				  <figcaption>max_ray_depth = 0 (7.98 s)</figcaption>
+				</td>
+			  </tr>
+			  <tr>
+				<td style="text-align: center;">
+				  <img src="assets/part4/bunny_o0_m1.png" width="400px"/>
+				  <figcaption>max_ray_depth = 1 (34.68 s)</figcaption>
+				</td>
+				<td style="text-align: center;">
+				  <img src="assets/part4/bunny_o1_m1.png" width="400px"/>
+				  <figcaption>max_ray_depth = 1 (34.36 s)</figcaption>
+				</td>
+			  </tr>
+			  <tr>
+				<td style="text-align: center;">
+				  <img src="assets/part4/bunny_o0_m2.png" width="400px"/>
+				  <figcaption>max_ray_depth = 2 (59.23 s)</figcaption>
+				</td>
+				<td style="text-align: center;">
+				  <img src="assets/part4/bunny_o1_m2.png" width="400px"/>
+				  <figcaption>max_ray_depth = 2 (70.18 s)</figcaption>
+				</td>
+			  </tr>
+			  <tr>
+				<td style="text-align: center;">
+				  <img src="assets/part4/bunny_o0_m3.png" width="400px"/>
+				  <figcaption>max_ray_depth = 3 (41.42 s)</figcaption>
+				</td>
+				<td style="text-align: center;">
+				  <img src="assets/part4/bunny_o1_m3.png" width="400px"/>
+				  <figcaption>max_ray_depth = 3 (86.78 s)</figcaption>
+				</td>
+			  </tr>
+			  <tr>
+				<td style="text-align: center;">
+				  <img src="assets/part4/bunny_o0_m4.png" width="400px"/>
+				  <figcaption>max_ray_depth = 4 (47.19 s)</figcaption>
+				</td>
+				<td style="text-align: center;">
+				  <img src="assets/part4/bunny_o1_m4.png" width="400px"/>
+				  <figcaption>max_ray_depth = 4 (98.45 s)</figcaption>
+				</td>
+			  </tr>
+			  <tr>
+				<td style="text-align: center;">
+				  <img src="assets/part4/bunny_o0_m5.png" width="400px"/>
+				  <figcaption>max_ray_depth = 5 (36.08 s)</figcaption>
+				</td>
+				<td style="text-align: center;">
+				  <img src="assets/part4/bunny_o1_m5.png" width="400px"/>
+				  <figcaption>max_ray_depth = 5 (133.88 s)</figcaption>
+				</td>
+			  </tr>
+			</table>
+		</div>
+
+		<p>Accumulated renders add every bounce up to the selected depth. Most of the visible change happens by the second bounce; later bounces only make the image slightly brighter.</p>
+
+		<h3>Russian roulette</h3>
+
+		<p>Russian roulette is always on in my final code, so the accumulated renders above already use it. Here are the six required depths for CBbunny.dae (accumulated bounces), including <code>max_ray_depth = 100</code>.</p>
+		<div style="display: flex; flex-direction: column; align-items: center;">
+			<table style="width: 100%; text-align: center; border-collapse: collapse;">
+			  <tr>
+				<td style="text-align: center;">
+				  <img src="assets/part4/bunny_o1_m0.png" width="260px"/>
+				  <figcaption>max_ray_depth = 0 (7.98 s)</figcaption>
+				</td>
+				<td style="text-align: center;">
+				  <img src="assets/part4/bunny_o1_m1.png" width="260px"/>
+				  <figcaption>max_ray_depth = 1 (34.36 s)</figcaption>
+				</td>
+				<td style="text-align: center;">
+				  <img src="assets/part4/bunny_o1_m2.png" width="260px"/>
+				  <figcaption>max_ray_depth = 2 (70.18 s)</figcaption>
+				</td>
+			  </tr>
+			  <tr>
+				<td style="text-align: center;">
+				  <img src="assets/part4/bunny_o1_m3.png" width="260px"/>
+				  <figcaption>max_ray_depth = 3 (86.78 s)</figcaption>
+				</td>
+				<td style="text-align: center;">
+				  <img src="assets/part4/bunny_o1_m4.png" width="260px"/>
+				  <figcaption>max_ray_depth = 4 (98.45 s)</figcaption>
+				</td>
+				<td style="text-align: center;">
+				  <img src="assets/part4/bunny_o1_m100.png" width="260px"/>
+				  <figcaption>max_ray_depth = 100 (139.46 s)</figcaption>
+				</td>
+			  </tr>
+			</table>
+		</div>
+
+		<p>The 100-bounce render looks almost the same as the five-bounce render because long paths are unlikely. Russian roulette keeps those long paths affordable without changing the result overall.</p>
+
+		<h3>Varying the samples per pixel</h3>
+
+		<p>For this comparison I rendered CBspheres_lambertian.dae with 4 light rays and <code>-m 5</code> at 1, 2, 4, 8, 16, 64, and 1024 samples per pixel.</p>
+		<div style="display: flex; flex-direction: column; align-items: center;">
+			<table style="width: 100%; text-align: center; border-collapse: collapse;">
+			  <tr>
+				<td style="text-align: center;">
+				  <img src="assets/part4/spheres_s1.png" width="260px"/>
+				  <figcaption>1 sample per pixel (0.1275 s)</figcaption>
+				</td>
+				<td style="text-align: center;">
+				  <img src="assets/part4/spheres_s2.png" width="260px"/>
+				  <figcaption>2 samples per pixel (0.2459 s)</figcaption>
+				</td>
+				<td style="text-align: center;">
+				  <img src="assets/part4/spheres_s4.png" width="260px"/>
+				  <figcaption>4 samples per pixel (0.6967 s)</figcaption>
+				</td>
+			  </tr>
+			  <tr>
+				<td style="text-align: center;">
+				  <img src="assets/part4/spheres_s8.png" width="260px"/>
+				  <figcaption>8 samples per pixel (1.1515 s)</figcaption>
+				</td>
+				<td style="text-align: center;">
+				  <img src="assets/part4/spheres_s16.png" width="260px"/>
+				  <figcaption>16 samples per pixel (1.9203 s)</figcaption>
+				</td>
+				<td style="text-align: center;">
+				  <img src="assets/part4/spheres_s64.png" width="260px"/>
+				  <figcaption>64 samples per pixel (7.4028 s)</figcaption>
+				</td>
+			  </tr>
+			  <tr>
+				<td style="text-align: center;">
+				  <img src="assets/part4/spheres_s1024.png" width="260px"/>
+				  <figcaption>1024 samples per pixel (118.5427 s)</figcaption>
+				</td>
+				<td></td>
+				<td></td>
+			  </tr>
+			</table>
+		</div>
+
+		<p>At one sample per pixel the image is very noisy. It steadily becomes smoother as the sample count increases, and 1024 samples is nearly clean.</p>
+		<p>More samples make the image smoother, but also increase render time. That tradeoff is why adaptive sampling is useful.</p>
 
 		<h2>Part 5: Adaptive Sampling</h2>
-		Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.
 
-		<h2>(Optional) Part 6: Extra Credit Opportunities</h2>
-		Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.
-		
-		<h2>Additional Notes (please remove)</h2>
-		<ul>
-			<li>You can also add code if you'd like as so: <code>code code code</code></li>
-			<li>If you'd like to add math equations, 
-				<ul>
-					<li>You can write inline equations like so: \( a^2 + b^2 = c^2 \)</li>
-					<li>You can write display equations like so: \[ a^2 + b^2 = c^2 \]</li>
-				</ul>
-			</li>
-		</ul>
+		<h3>What adaptive sampling is and how I implemented it</h3>
+
+		<p>Adaptive sampling gives hard-to-render pixels more work and stops early on simple ones. Every 64 samples, I check whether a pixel's color has settled down enough. If it has, I stop; otherwise, I keep sampling until it reaches the maximum.</p>
+
+		<p>The rate image shows where samples went: red pixels needed many samples, blue pixels finished early, and green pixels are in between. Noisy shadows and indirectly lit areas usually need more samples than bright, directly lit walls.</p>
+
+		<h3>Adaptive sampling results</h3>
+
+		<p>I rendered both scenes with the same settings:</p>
+		<p><code>./pathtracer -t 8 -s 2048 -a 64 0.05 -l 1 -m 5 -r 480 360 -f &lt;name&gt;.png &lt;scene&gt;</code></p>
+		<p>So each pixel can use up to 2048 samples, gets checked every 64 samples, and uses a 5% tolerance. The renderer also writes the matching <code>_rate.png</code> image automatically.</p>
+		<div style="display: flex; flex-direction: column; align-items: center;">
+			<table style="width: 100%; text-align: center; border-collapse: collapse;">
+			  <tr>
+				<th>Rendered image</th>
+				<th>Sampling rate image</th>
+			  </tr>
+			  <tr>
+				<td style="text-align: center;">
+				  <img src="assets/part5/bunny.png" width="400px"/>
+				  <figcaption>CBbunny.dae (40.76 s)</figcaption>
+				</td>
+				<td style="text-align: center;">
+				  <img src="assets/part5/bunny_rate.png" width="400px"/>
+				  <figcaption>CBbunny.dae, sampling rate</figcaption>
+				</td>
+			  </tr>
+			  <tr>
+				<td style="text-align: center;">
+				  <img src="assets/part5/spheres.png" width="400px"/>
+				  <figcaption>CBspheres_lambertian.dae (43.15 s)</figcaption>
+				</td>
+				<td style="text-align: center;">
+				  <img src="assets/part5/spheres_rate.png" width="400px"/>
+				  <figcaption>CBspheres_lambertian.dae, sampling rate</figcaption>
+				</td>
+			  </tr>
+			</table>
+		</div>
+
+		<p>Both final renders look clean. The rate images also make it clear where the extra work went:</p>
+		<p>Red areas&mdash;especially ceilings, soft shadows, and darker surfaces&mdash;need the most samples. Blue areas, such as the light, background, and directly lit walls, settle quickly.</p>
+
+		<p>The light and background settle quickly because their samples barely change. Indirectly lit ceilings and soft shadows vary more, so I spend more samples there.</p>
+
 		</div>
 	</body>
 </html>
